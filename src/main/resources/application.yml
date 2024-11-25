@@ -1,0 +1,12 @@
+vaadin:
+  launch-browser: true
+
+spring:
+  application:
+    name: phonebook
+  data:
+    mongodb:
+      uri: mongodb://rootuser:rootpass@localhost:27017/phonebookdb?authSource=admin
+
+server:
+  port: 4567
