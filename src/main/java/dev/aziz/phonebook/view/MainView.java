@@ -39,12 +39,19 @@ public class MainView extends AppLayout {
                 .set("margin", "var(--lumo-space-m)");
 
         Button createButton = new Button("Create User", e -> openUserDialog(new User(), true));
-        createButton.getStyle().set("margin-left", "auto");
 
-        Button exportButton = new Button("Export Data", e -> exportData());
+        Anchor exportLink = new Anchor();
+        exportLink.setText("Export Data (PDF)");
+        exportLink.getElement().setAttribute("download", true);
 
+        updateExportLink(exportLink);
 
-        HorizontalLayout header = new HorizontalLayout(title, createButton, exportButton);
+        HorizontalLayout buttonLayout = new HorizontalLayout(createButton, exportLink);
+        buttonLayout.setSpacing(true); // Add spacing between components
+        buttonLayout.getStyle().set("margin-left", "auto");
+        buttonLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+
+        HorizontalLayout header = new HorizontalLayout(title, buttonLayout);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
 
@@ -61,49 +68,42 @@ public class MainView extends AppLayout {
         grid.setAllRowsVisible(true);
         setContent(grid);
     }
+    private void updateExportLink(Anchor exportLink) {
+        StreamResource resource = new StreamResource("phonebook-export.pdf", () -> {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
-    private void exportData() {
-        List<User> users = userService.getAllUsers();
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            try {
+                PdfWriter writer = new PdfWriter(byteArrayOutputStream);
+                PdfDocument pdfDocument = new PdfDocument(writer);
+                Document document = new Document(pdfDocument);
 
-        try {
-            PdfWriter writer = new PdfWriter(byteArrayOutputStream);
-            PdfDocument pdfDocument = new PdfDocument(writer);
-            Document document = new Document(pdfDocument);
+                document.add(new Paragraph("Phone Book Export").setTextAlignment(TextAlignment.CENTER).setBold());
 
-            document.add(new Paragraph("Phone Book Export").setTextAlignment(TextAlignment.CENTER).setBold());
+                Table table = new Table(4);
+                table.addHeaderCell("First Name");
+                table.addHeaderCell("Last Name");
+                table.addHeaderCell("Email");
+                table.addHeaderCell("Phone Number");
 
-            Table table = new Table(4);
-            table.addHeaderCell("First Name");
-            table.addHeaderCell("Last Name");
-            table.addHeaderCell("Email");
-            table.addHeaderCell("Phone Number");
+                List<User> users = userService.getAllUsers();
+                for (User user : users) {
+                    table.addCell(user.getFirstName());
+                    table.addCell(user.getLastName());
+                    table.addCell(user.getEmail());
+                    table.addCell(user.getPhoneNumber());
+                }
 
-            for (User user : users) {
-                table.addCell(user.getFirstName());
-                table.addCell(user.getLastName());
-                table.addCell(user.getEmail());
-                table.addCell(user.getPhoneNumber());
+                document.add(table);
+                document.close();
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            document.add(table);
-            document.close();
 
-            StreamResource resource = new StreamResource("phonebook-export.pdf",
-                    () -> new ByteArrayInputStream(byteArrayOutputStream.toByteArray()));
+            return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+        });
 
-            Anchor downloadLink = new Anchor(resource, "Download Phone Book (PDF)");
-            downloadLink.getElement().setAttribute("download", true);
-
-            VerticalLayout layout = new VerticalLayout(downloadLink);
-            layout.setAlignItems(FlexComponent.Alignment.CENTER);
-
-            Dialog dialog = new Dialog(layout);
-            dialog.setHeaderTitle("Export Data");
-            dialog.open();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        exportLink.setHref(resource);
     }
 
     private HorizontalLayout createActionButtons(User user) {
