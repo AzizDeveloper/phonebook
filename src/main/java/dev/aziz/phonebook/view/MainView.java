@@ -16,6 +16,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
 import dev.aziz.phonebook.entity.User;
@@ -39,6 +40,11 @@ public class MainView extends AppLayout {
                 .set("margin", "var(--lumo-space-m)");
 
         Button createButton = new Button("Create User", e -> openUserDialog(new User(), true));
+        Button openButton = new Button("Open");
+        Button createdOrders = new Button("Created purchase orders");
+        Button createOrder = new Button("Create order");
+        TextField filterByNameTextField = new TextField("", "Filter by Name");
+        filterByNameTextField.getStyle().set("margin-right", "auto");
 
         Anchor exportLink = new Anchor();
         exportLink.setText("Export Data (PDF)");
@@ -46,16 +52,22 @@ public class MainView extends AppLayout {
 
         updateExportLink(exportLink);
 
-        HorizontalLayout buttonLayout = new HorizontalLayout(createButton, exportLink);
-        buttonLayout.setSpacing(true); // Add spacing between components
+        HorizontalLayout buttonLayout = new HorizontalLayout(openButton, createButton, exportLink);
+        buttonLayout.setSpacing(true);
         buttonLayout.getStyle().set("margin-left", "auto");
         buttonLayout.setAlignItems(FlexComponent.Alignment.CENTER);
 
-        HorizontalLayout header = new HorizontalLayout(title, buttonLayout);
+        HorizontalLayout header = new HorizontalLayout(title, filterByNameTextField, buttonLayout);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
 
-        addToNavbar(header);
+        HorizontalLayout footer = new HorizontalLayout(createdOrders, createOrder);
+        footer.getStyle().set("position", "sticky")
+                .set("bottom", "0")
+                .set("width", "100%")
+                .set("padding", "10px");
+
+        footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 
         grid = new Grid<>(User.class, false);
         grid.addColumn(User::getFirstName).setHeader("First Name");
@@ -66,8 +78,17 @@ public class MainView extends AppLayout {
 
         refreshGrid();
         grid.setAllRowsVisible(true);
-        setContent(grid);
+        grid.setHeight("calc(100vh - 200px)");
+        VerticalLayout mainLayout = new VerticalLayout();
+        mainLayout.setSizeFull();
+        mainLayout.add(header);
+        mainLayout.add(grid);
+        mainLayout.add(footer);
+        setContent(mainLayout);
+        mainLayout.expand(grid);
+        mainLayout.setFlexGrow(1, grid);
     }
+
     private void updateExportLink(Anchor exportLink) {
         StreamResource resource = new StreamResource("phonebook-export.pdf", () -> {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
