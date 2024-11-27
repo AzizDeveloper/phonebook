@@ -16,43 +16,62 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
-import dev.aziz.phonebook.entity.User;
-import dev.aziz.phonebook.service.UserService;
+import dev.aziz.phonebook.entity.Item;
+import dev.aziz.phonebook.service.ItemService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Route("")
 public class MainView extends AppLayout {
 
-    private final UserService userService;
-    private final Grid<User> grid;
+    private final ItemService itemService;
+    private final Grid<Item> grid;
+    private Item selectedItem;
 
-    public MainView(UserService userService) {
-        this.userService = userService;
+    public MainView(ItemService itemService) {
+        this.itemService = itemService;
 
         H1 title = new H1("Phone Book");
         title.getStyle().set("font-size", "var(--lumo-font-size-l)")
                 .set("margin", "var(--lumo-space-m)");
 
-        Button createButton = new Button("Create User", e -> openUserDialog(new User(), true));
+        Button createButton = new Button("Create User", e -> openItemDialog(new Item(), true));
         Button openButton = new Button("Open");
         Button createdOrders = new Button("Created purchase orders");
         Button createOrder = new Button("Create order");
+
+        grid = new Grid<>(Item.class, false);
+
         TextField filterByNameTextField = new TextField("", "Filter by Name");
         filterByNameTextField.getStyle().set("margin-right", "auto");
 
         Anchor exportLink = new Anchor();
         exportLink.setText("Export Data (PDF)");
         exportLink.getElement().setAttribute("download", true);
-
         updateExportLink(exportLink);
 
-        HorizontalLayout buttonLayout = new HorizontalLayout(openButton, createButton, exportLink);
+        Button editButton = new Button("Edit", e -> {
+            if (selectedItem != null) {
+                openItemDialog(selectedItem, false);
+            }
+        });
+        editButton.setEnabled(false);
+
+        Button deleteButton = new Button("Delete", e -> {
+            if (selectedItem != null) {
+                itemService.deleteItemById(selectedItem.getId());
+                refreshGrid();
+                grid.deselectAll();
+            }
+        });
+        deleteButton.setEnabled(false);
+
+        HorizontalLayout buttonLayout = new HorizontalLayout(openButton, createButton, editButton, deleteButton, exportLink);
         buttonLayout.setSpacing(true);
         buttonLayout.getStyle().set("margin-left", "auto");
         buttonLayout.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -66,19 +85,25 @@ public class MainView extends AppLayout {
                 .set("bottom", "0")
                 .set("width", "100%")
                 .set("padding", "10px");
-
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 
-        grid = new Grid<>(User.class, false);
-        grid.addColumn(User::getFirstName).setHeader("First Name");
-        grid.addColumn(User::getLastName).setHeader("Last Name");
-        grid.addColumn(User::getEmail).setHeader("Email");
-        grid.addColumn(User::getPhoneNumber).setHeader("Phone Number");
-        grid.addComponentColumn(this::createActionButtons).setHeader("Actions");
+        grid.addColumn(Item::getName).setHeader("Name");
+        grid.addColumn(Item::getAmount).setHeader("Amount");
+        grid.addColumn(Item::getUnitOfMeasure).setHeader("Unit of Measurement");
+        grid.addColumn(Item::getPrice).setHeader("Price");
+
+        // Add selection listener
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            selectedItem = event.getValue();
+            boolean hasSelection = selectedItem != null;
+            editButton.setEnabled(hasSelection);
+            deleteButton.setEnabled(hasSelection);
+        });
 
         refreshGrid();
         grid.setAllRowsVisible(true);
         grid.setHeight("calc(100vh - 200px)");
+
         VerticalLayout mainLayout = new VerticalLayout();
         mainLayout.setSizeFull();
         mainLayout.add(header);
@@ -90,7 +115,7 @@ public class MainView extends AppLayout {
     }
 
     private void updateExportLink(Anchor exportLink) {
-        StreamResource resource = new StreamResource("phonebook-export.pdf", () -> {
+        StreamResource resource = new StreamResource("items-export.pdf", () -> {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
             try {
@@ -98,20 +123,20 @@ public class MainView extends AppLayout {
                 PdfDocument pdfDocument = new PdfDocument(writer);
                 Document document = new Document(pdfDocument);
 
-                document.add(new Paragraph("Phone Book Export").setTextAlignment(TextAlignment.CENTER).setBold());
+                document.add(new Paragraph("Items Export").setTextAlignment(TextAlignment.CENTER).setBold());
 
                 Table table = new Table(4);
-                table.addHeaderCell("First Name");
-                table.addHeaderCell("Last Name");
-                table.addHeaderCell("Email");
-                table.addHeaderCell("Phone Number");
+                table.addHeaderCell("Name");
+                table.addHeaderCell("Amount");
+                table.addHeaderCell("Unit of Measurement");
+                table.addHeaderCell("Price");
 
-                List<User> users = userService.getAllUsers();
-                for (User user : users) {
-                    table.addCell(user.getFirstName());
-                    table.addCell(user.getLastName());
-                    table.addCell(user.getEmail());
-                    table.addCell(user.getPhoneNumber());
+                List<Item> items = itemService.getAllItems();
+                for (Item item : items) {
+                    table.addCell(item.getName());
+                    table.addCell(item.getAmount().toString());
+                    table.addCell(item.getUnitOfMeasure());
+                    table.addCell(item.getPrice().toString());
                 }
 
                 document.add(table);
@@ -127,49 +152,47 @@ public class MainView extends AppLayout {
         exportLink.setHref(resource);
     }
 
-    private HorizontalLayout createActionButtons(User user) {
-        Button editButton = new Button("Edit", e -> openUserDialog(user, false));
-        Button deleteButton = new Button("Delete", e -> {
-            userService.deleteUserById(user.getId());
-            refreshGrid();
-        });
-
-        return new HorizontalLayout(editButton, deleteButton);
-    }
+//    private HorizontalLayout createActionButtons(User user) {
+//        Button editButton = new Button("Edit", e -> openUserDialog(user, false));
+//        Button deleteButton = new Button("Delete", e -> {
+//            userService.deleteUserById(user.getId());
+//            refreshGrid();
+//        });
+//
+//        return new HorizontalLayout(editButton, deleteButton);
+//    }
 
     private void refreshGrid() {
-        List<User> people = userService.getAllUsers();
-        grid.setItems(people);
+        List<Item> items = itemService.getAllItems();
+        grid.setItems(items);
     }
 
-    private void openUserDialog(User user, boolean isNew) {
+    private void openItemDialog(Item item, boolean isNew) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle(isNew ? "Create User" : "Edit User");
+        dialog.setHeaderTitle(isNew ? "Create Item" : "Edit Item");
 
-        TextField firstNameField = new TextField("First Name");
-        firstNameField.setValue(user.getFirstName() != null ? user.getFirstName() : "");
+        TextField nameField = new TextField("Name");
+        nameField.setValue(item.getName() != null ? item.getName() : "");
 
-        TextField lastNameField = new TextField("Last Name");
-        lastNameField.setValue(user.getLastName() != null ? user.getLastName() : "");
+        TextField amountField = new TextField("Amount");
+        amountField.setValue(item.getAmount() != null ? item.getAmount().toString() : "");
 
-        TextField emailField = new TextField("Email");
-        emailField.setValue(user.getEmail() != null ? user.getEmail() : "");
+        TextField unitOfMeasurementField = new TextField("Unit of Measurement");
+        unitOfMeasurementField.setValue(item.getUnitOfMeasure() != null ? item.getUnitOfMeasure() : "");
 
-        TextField phoneNumberField = new TextField("Phone Number");
-        phoneNumberField.setValue(user.getPhoneNumber() != null ? user.getPhoneNumber().toString() : "");
-        phoneNumberField.setPattern("\\d*");
-
+        TextField priceField = new TextField("Price");
+        priceField.setValue(item.getPrice() != null ? String.valueOf(item.getPrice()) : "");
 
         Button saveButton = new Button("Save", e -> {
-            user.setFirstName(firstNameField.getValue());
-            user.setLastName(lastNameField.getValue());
-            user.setEmail(emailField.getValue());
-            user.setPhoneNumber(phoneNumberField.getValue());
+            item.setName(nameField.getValue());
+            item.setAmount(Integer.valueOf(amountField.getValue()));
+            item.setUnitOfMeasure(unitOfMeasurementField.getValue());
+            item.setPrice(new BigDecimal(priceField.getValue()));
 
             if (isNew) {
-                userService.createUser(user);
+                itemService.createItem(item);
             } else {
-                userService.updateUser(user.getId(), user);
+                itemService.updateItem(item.getId(), item);
             }
 
             refreshGrid();
@@ -179,7 +202,7 @@ public class MainView extends AppLayout {
         Button cancelButton = new Button("Cancel", e -> dialog.close());
 
         VerticalLayout dialogLayout = new VerticalLayout(
-                firstNameField, lastNameField, emailField, phoneNumberField
+                nameField, amountField, unitOfMeasurementField, priceField
         );
         dialog.add(dialogLayout);
         dialog.getFooter().add(saveButton, cancelButton);
