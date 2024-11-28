@@ -1,9 +1,11 @@
 package dev.aziz.phonebook.service;
 
 import dev.aziz.phonebook.entity.Item;
-import dev.aziz.phonebook.entity.User;
 import dev.aziz.phonebook.repository.ItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,6 +15,7 @@ import java.util.List;
 public class ItemService {
 
     private final ItemRepository itemRepository;
+    private final MongoTemplate mongoTemplate;
 
     public List<Item> getAllItems() {
         return itemRepository.findAll();
@@ -38,9 +41,53 @@ public class ItemService {
         return itemRepository.save(item);
     }
 
-    public List<Item> getItemsByFilter(String search) {
-        System.out.println("Service layer search: " + search);
-        return itemRepository.searchItem(search);
+    public List<Item> getItemsByFilterAllFields(String name,
+                                                Double minAmount,
+                                                Double maxAmount,
+                                                String unitOfMeasure,
+                                                Double minPrice,
+                                                Double maxPrice) {
+        Query query = new Query();
+
+        if (name != null && !name.isEmpty()) {
+            query.addCriteria(Criteria.where("name").regex(".*" + name + ".*", "i"));
+        }
+
+        if (minAmount != null && maxAmount == null) {
+            Integer minAmountInt = minAmount.intValue();
+            System.out.println("Only min Amount is given");
+            query.addCriteria(Criteria.where("amount")
+                    .gte(minAmountInt));
+        } else if (minAmount == null && maxAmount != null) {
+            Integer maxAmountInt = maxAmount.intValue();
+            System.out.println("Only max Amount is given");
+            query.addCriteria(Criteria.where("amount")
+                    .lte(maxAmountInt));
+        } else if (minAmount != null && maxAmount != null) {
+            Integer minAmountInt = minAmount.intValue();
+            Integer maxAmountInt = maxAmount.intValue();
+            System.out.println("Both Amounts are given");
+            query.addCriteria(Criteria.where("amount")
+                    .gte(minAmountInt)
+                    .lte(maxAmountInt));
+        }
+
+        if (unitOfMeasure != null && !unitOfMeasure.isEmpty()) {
+            query.addCriteria(Criteria.where("unitOfMeasure").regex(".*" + unitOfMeasure + ".*", "i"));
+        }
+        if (minPrice != null && maxPrice == null) {
+            query.addCriteria(Criteria.where("price")
+                    .gte(minPrice));
+        } else if (minPrice == null && maxPrice != null) {
+            query.addCriteria(Criteria.where("price")
+                    .lte(maxPrice));
+        } else if (minPrice != null && maxPrice != null) {
+            query.addCriteria(Criteria.where("price")
+                    .gte(minPrice)
+                    .lte(maxPrice));
+        }
+        System.out.println(query);
+        return mongoTemplate.find(query, Item.class);
     }
 
 }

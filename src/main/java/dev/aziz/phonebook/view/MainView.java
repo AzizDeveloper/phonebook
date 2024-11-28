@@ -26,7 +26,6 @@ import dev.aziz.phonebook.service.ItemService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +37,11 @@ public class MainView extends AppLayout {
     private Item selectedItem;
     private List<Item> selectedItems = new ArrayList<>();
     private TextField filterByNameTextField;
+    private NumberField filterByGreaterThanAmountTextField;
+    private NumberField filterByLessThanAmountTextField;
+    private TextField filterByUnitOfMeasureTextField;
+    private NumberField filterByGreaterThanPriceTextField;
+    private NumberField filterByLessThanPriceTextField;
 
     public MainView(ItemService itemService) {
         this.itemService = itemService;
@@ -54,9 +58,30 @@ public class MainView extends AppLayout {
         grid = new Grid<>(Item.class, false);
 
         filterByNameTextField = new TextField("", "Filter by Name");
-        filterByNameTextField.getStyle().set("margin-right", "auto");
+        filterByGreaterThanAmountTextField = new NumberField("", "Filter by greater amount");
+        filterByLessThanAmountTextField = new NumberField("", "Filter by less amount");
+        filterByUnitOfMeasureTextField = new TextField("", "Filter by unit of measure");
+        filterByGreaterThanPriceTextField = new NumberField("", "Filter by greater price");
+        filterByLessThanPriceTextField = new NumberField("", "Filter by less price");
 
-        Button getItemsFilter = new Button("Filter", e -> refreshGrid());
+        Button filterButton = new Button("Filter", e -> {
+            String nameFilter = filterByNameTextField.getValue();
+            Double greaterThanAmount = filterByGreaterThanAmountTextField.getValue();
+            Double lessThanAmount = filterByLessThanAmountTextField.getValue();
+            String unitOfMeasureFilter = filterByUnitOfMeasureTextField.getValue();
+            Double greaterThanPrice = filterByGreaterThanPriceTextField.getValue();
+            Double lessThanPrice = filterByLessThanPriceTextField.getValue();
+
+            List<Item> items = itemService.getItemsByFilterAllFields(
+                    nameFilter,
+                    greaterThanAmount,
+                    lessThanAmount,
+                    unitOfMeasureFilter,
+                    greaterThanPrice,
+                    lessThanPrice
+            );
+            grid.setItems(items);
+        });
 
         Anchor exportLink = new Anchor();
         exportLink.setText("Export Data (PDF)");
@@ -84,7 +109,7 @@ public class MainView extends AppLayout {
         buttonLayout.getStyle().set("margin-left", "auto");
         buttonLayout.setAlignItems(FlexComponent.Alignment.CENTER);
 
-        HorizontalLayout header = new HorizontalLayout(title, filterByNameTextField, getItemsFilter, buttonLayout);
+        HorizontalLayout header = new HorizontalLayout(title, filterByNameTextField, buttonLayout);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
 
@@ -125,13 +150,33 @@ public class MainView extends AppLayout {
         grid.setHeight("calc(100vh - 200px)");
 
         VerticalLayout mainLayout = new VerticalLayout();
+        VerticalLayout filterVerticalLayout = new VerticalLayout(
+                filterByNameTextField,
+                filterByGreaterThanAmountTextField,
+                filterByLessThanAmountTextField,
+                filterByUnitOfMeasureTextField,
+                filterByGreaterThanPriceTextField,
+                filterByLessThanPriceTextField,
+                filterButton
+        );
+
+        filterVerticalLayout.setSpacing(true);
+        filterVerticalLayout.setPadding(true);
+        filterVerticalLayout.setWidth(null);
+
+        grid.setWidthFull();
+
+        HorizontalLayout filterAndTable = new HorizontalLayout(filterVerticalLayout, grid);
+        filterAndTable.setWidthFull();
+        filterAndTable.setSpacing(true);
+        filterAndTable.setPadding(false);
+        filterAndTable.setAlignItems(FlexComponent.Alignment.START);
+        filterAndTable.setFlexGrow(1, grid);
+
         mainLayout.setSizeFull();
-        mainLayout.add(header);
-        mainLayout.add(grid);
-        mainLayout.add(footer);
+        mainLayout.add(header, filterAndTable, footer);
+        mainLayout.setFlexGrow(1, filterAndTable);
         setContent(mainLayout);
-        mainLayout.expand(grid);
-        mainLayout.setFlexGrow(1, grid);
     }
 
     private void updateExportLink(Anchor exportLink) {
@@ -173,18 +218,8 @@ public class MainView extends AppLayout {
     }
 
     private void refreshGrid() {
-        if (!filterByNameTextField.getValue().isEmpty()) {
-            System.out.println("Get items by Filter");
-            System.out.println("filterByNameTextField = " + filterByNameTextField.getValue());
-            List<Item> items = itemService.getItemsByFilter(filterByNameTextField.getValue());
-            System.out.println("items size = " + items.size());
-            grid.setItems(items);
-        } else {
-            System.out.println("Get just all items");
             List<Item> items = itemService.getAllItems();
-            System.out.println("items size = " + items.size());
             grid.setItems(items);
-        }
     }
 
     private void openItemDialog(Item item, boolean isNew) {
@@ -207,7 +242,7 @@ public class MainView extends AppLayout {
             item.setName(nameField.getValue());
             item.setAmount(Integer.valueOf(amountField.getValue()));
             item.setUnitOfMeasure(unitOfMeasurementField.getValue());
-            item.setPrice(new BigDecimal(priceField.getValue()));
+            item.setPrice(Double.valueOf(priceField.getValue()));
 
             if (isNew) {
                 itemService.createItem(item);
