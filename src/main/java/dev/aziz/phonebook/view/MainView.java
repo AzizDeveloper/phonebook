@@ -8,13 +8,16 @@ import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
@@ -24,6 +27,7 @@ import dev.aziz.phonebook.service.ItemService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Route("")
@@ -32,6 +36,8 @@ public class MainView extends AppLayout {
     private final ItemService itemService;
     private final Grid<Item> grid;
     private Item selectedItem;
+    private List<Item> selectedItems = new ArrayList<>();
+    private TextField filterByNameTextField;
 
     public MainView(ItemService itemService) {
         this.itemService = itemService;
@@ -40,15 +46,17 @@ public class MainView extends AppLayout {
         title.getStyle().set("font-size", "var(--lumo-font-size-l)")
                 .set("margin", "var(--lumo-space-m)");
 
-        Button createButton = new Button("Create User", e -> openItemDialog(new Item(), true));
+        Button createButton = new Button("Create Item", e -> openItemDialog(new Item(), true));
         Button openButton = new Button("Open");
         Button createdOrders = new Button("Created purchase orders");
-        Button createOrder = new Button("Create order");
+        Button createOrder = new Button("Create order", e -> openCreateOrderDialog(selectedItems));
 
         grid = new Grid<>(Item.class, false);
 
-        TextField filterByNameTextField = new TextField("", "Filter by Name");
+        filterByNameTextField = new TextField("", "Filter by Name");
         filterByNameTextField.getStyle().set("margin-right", "auto");
+
+        Button getItemsFilter = new Button("Filter", e -> refreshGrid());
 
         Anchor exportLink = new Anchor();
         exportLink.setText("Export Data (PDF)");
@@ -76,7 +84,7 @@ public class MainView extends AppLayout {
         buttonLayout.getStyle().set("margin-left", "auto");
         buttonLayout.setAlignItems(FlexComponent.Alignment.CENTER);
 
-        HorizontalLayout header = new HorizontalLayout(title, filterByNameTextField, buttonLayout);
+        HorizontalLayout header = new HorizontalLayout(title, filterByNameTextField, getItemsFilter, buttonLayout);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
 
@@ -87,12 +95,24 @@ public class MainView extends AppLayout {
                 .set("padding", "10px");
         footer.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 
-        grid.addColumn(Item::getName).setHeader("Name");
-        grid.addColumn(Item::getAmount).setHeader("Amount");
-        grid.addColumn(Item::getUnitOfMeasure).setHeader("Unit of Measurement");
-        grid.addColumn(Item::getPrice).setHeader("Price");
 
-        // Add selection listener
+        grid.addComponentColumn(item -> {
+            Checkbox checkbox = new Checkbox();
+            checkbox.addValueChangeListener(event -> {
+                if (event.getValue()) {
+                    selectedItems.add(item);
+                } else {
+                    selectedItems.remove(item);
+                }
+            });
+            return checkbox;
+        }).setHeader("Select");
+
+        grid.addColumn(Item::getName).setHeader("Name").setSortable(true);
+        grid.addColumn(Item::getAmount).setHeader("Amount").setSortable(true);
+        grid.addColumn(Item::getUnitOfMeasure).setHeader("Unit of Measurement").setSortable(true);
+        grid.addColumn(Item::getPrice).setHeader("Price").setSortable(true);
+
         grid.asSingleSelect().addValueChangeListener(event -> {
             selectedItem = event.getValue();
             boolean hasSelection = selectedItem != null;
@@ -152,19 +172,19 @@ public class MainView extends AppLayout {
         exportLink.setHref(resource);
     }
 
-//    private HorizontalLayout createActionButtons(User user) {
-//        Button editButton = new Button("Edit", e -> openUserDialog(user, false));
-//        Button deleteButton = new Button("Delete", e -> {
-//            userService.deleteUserById(user.getId());
-//            refreshGrid();
-//        });
-//
-//        return new HorizontalLayout(editButton, deleteButton);
-//    }
-
     private void refreshGrid() {
-        List<Item> items = itemService.getAllItems();
-        grid.setItems(items);
+        if (!filterByNameTextField.getValue().isEmpty()) {
+            System.out.println("Get items by Filter");
+            System.out.println("filterByNameTextField = " + filterByNameTextField.getValue());
+            List<Item> items = itemService.getItemsByFilter(filterByNameTextField.getValue());
+            System.out.println("items size = " + items.size());
+            grid.setItems(items);
+        } else {
+            System.out.println("Get just all items");
+            List<Item> items = itemService.getAllItems();
+            System.out.println("items size = " + items.size());
+            grid.setItems(items);
+        }
     }
 
     private void openItemDialog(Item item, boolean isNew) {
@@ -207,6 +227,45 @@ public class MainView extends AppLayout {
         dialog.add(dialogLayout);
         dialog.getFooter().add(saveButton, cancelButton);
         dialog.open();
+    }
+
+    private void openCreateOrderDialog(List<Item> items) {
+        if (!items.isEmpty()) {
+            Dialog dialog = new Dialog();
+            dialog.setHeaderTitle("Create Order");
+
+            VerticalLayout dialogLayout = new VerticalLayout();
+            dialogLayout.setSizeFull();
+            dialogLayout.setPadding(false);
+            dialogLayout.setSpacing(false);
+
+            final Grid<Item> selectedItemsGrid = new Grid<>(Item.class, false);
+            selectedItemsGrid.addColumn(Item::getName).setHeader("Name").setAutoWidth(true);
+            selectedItemsGrid.addColumn(Item::getAmount).setHeader("Amount").setAutoWidth(true);
+            selectedItemsGrid.addColumn(Item::getUnitOfMeasure).setHeader("Unit of Measurement").setAutoWidth(true);
+            selectedItemsGrid.addColumn(Item::getPrice).setHeader("Price").setAutoWidth(true);
+            selectedItemsGrid.addColumn(item -> item.getAmount() * item.getPrice().doubleValue())
+                    .setHeader("Total Price")
+                    .setAutoWidth(true)
+                    .setFlexGrow(1);
+            selectedItemsGrid.setItems(items);
+            selectedItemsGrid.setWidthFull();
+            selectedItemsGrid.setAllRowsVisible(true);
+            selectedItemsGrid.setHeight("300px");
+
+            dialogLayout.add(selectedItemsGrid);
+
+            Button cancelButton = new Button("Cancel", e -> dialog.close());
+            Button saveButton = new Button("Save", e -> dialog.close());
+            Button chooseSupplierButton = new Button("Choose Supplier", e -> dialog.close());
+            chooseSupplierButton.getStyle().set("margin-right", "auto");
+
+            dialog.add(dialogLayout);
+            dialog.getFooter().add(chooseSupplierButton, cancelButton, saveButton);
+            dialog.open();
+        } else {
+            Notification.show("No items selected for the order.", 3000, Notification.Position.MIDDLE);
+        }
     }
 }
 
