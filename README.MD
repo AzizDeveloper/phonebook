@@ -21,6 +21,20 @@ The following guides illustrate how to use some features concretely:
 
 ### Screenshots
 
+* Items: 
+![img.png](img.png)
+* Choose items:
+![img_1.png](img_1.png)
+* Create order:
+![img_2.png](img_2.png)
+* Filter by name "p":
+![img_3.png](img_3.png)
+* Filter by name "p", Amount between 100 and 200, Price between 100 and 300:
+![img_4.png](img_4.png)
+
+
+* Old phonebook version:
+
 * MainView:
 
 ![img.png](src/main/resources/images/img.png)
